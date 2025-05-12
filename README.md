@@ -17,5 +17,7 @@ pip install -qU langgraph langchain-openai langchain-mcp-adapters python-dotenv 
 
 ## 実装
 
-- [non_mcp/main.py](./non_mcp/main.py)
-- [mcp/main.py](./mcp/main.py)
+- [Tool Calling](./non_mcp)
+- [MCP stdio](./mcp_stdio)
+- [MCP SSE](./mcp_sse)
+- [MCP StreamableHTTP](./mcp_streamablehttp)
