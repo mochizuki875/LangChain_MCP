@@ -1,18 +1,22 @@
 import os
 from dotenv import load_dotenv
 from pathlib import Path
-
+import asyncio
+from dotenv import load_dotenv
 from langchain.agents import create_agent
 from langchain_ollama import ChatOllama
 from langchain.tools import tool
+from langchain_mcp_adapters.client import MultiServerMCPClient
+
+from mcp import ClientSession, StdioServerParameters
+from mcp.client.stdio import stdio_client
+from langchain_mcp_adapters.tools import load_mcp_tools
 
 # Load environment variables from .env file
 env_path = Path(__file__).parent / '.env'
 load_dotenv(dotenv_path=env_path)
+RUN_NAME="mcp_stdio"
 
-# ============================================================================
-# Configuration Section
-# ============================================================================
 # Initialize LLM Model based on provider
 # LLM Provider Selection (set via environment variable or default to ollama)
 MODEL_NAME = os.getenv("MODEL_NAME", "gpt-oss:20b")
@@ -26,6 +30,12 @@ if LLM_PROVIDER == "ollama":
     print(f"Using Ollama: {MODEL_NAME} at {MODEL_BASE_URL}")
 else:
     raise ValueError(f"Unknown LLM_PROVIDER: {LLM_PROVIDER}. Use 'ollama'.")
+
+# MCP server configuration
+server_params = StdioServerParameters(
+    command="python",
+    args=["./schedule_mcp.py"],
+)
 
 # Agent system prompt
 SYSTEM_PROMPT = "You are a helpful assistant."
@@ -73,17 +83,28 @@ def display_tools(tools):
         print()
 
 
-def get_tools():
+async def setup_tools(session):
     """
-    Return all available tools.
+    Setup and return all available tools.
+    
+    This function:
+    1. Retrieves tools from MCP servers
+    2. Combines MCP tools with local tools
+    
+    Args:
+        session: Active MCP ClientSession
     
     Returns:
-        List of all available tools
+        List of all available tools (MCP + local)
     """
-    return [get_weather]
+    # Get tools from MCP session
+    mcp_tools = await load_mcp_tools(session)
+    
+    # Combine MCP tools with local tools
+    return mcp_tools + [get_weather]
 
 
-def run_agent_loop(agent):
+async def run_agent_loop(agent):
     """
     Run the interactive agent conversation loop.
     
@@ -112,10 +133,11 @@ def run_agent_loop(agent):
         messages.append({"role": "user", "content": query})
         
         # Stream agent response
-        # agent.stream() yields intermediate states during execution
-        for event in agent.stream(
+        # agent.astream() yields intermediate states during execution
+        async for event in agent.astream(
             {"messages": messages},
             stream_mode="values",  # Stream complete state at each step
+            config={"run_name": RUN_NAME},
         ):
             # Print the last message (agent's response or tool output)
             event["messages"][-1].pretty_print()
@@ -125,37 +147,44 @@ def run_agent_loop(agent):
         messages = event["messages"]
 
 
-def main():
+async def main():
     """
     Main entry point for the application.
     
     This function orchestrates:
-    1. Tool setup
-    2. Tool display (for debugging)
-    3. Agent creation with model and tools
-    4. Interactive conversation loop
+    1. MCP server connection
+    2. Tool setup (MCP + local tools)
+    3. Tool display (for debugging)
+    4. Agent creation with model and tools
+    5. Interactive conversation loop
     """
-    # Get all available tools
-    tools = get_tools()
-    
-    # Display tools for debugging
-    # This shows what capabilities the model has access to
-    display_tools(tools)
-    
-    # Create agent with LLM model, tools, and system prompt
-    # The agent will use these tools to answer user queries
-    agent = create_agent(
-        model, 
-        tools,
-        system_prompt=SYSTEM_PROMPT
-    )
-    
-    # Start interactive conversation loop
-    run_agent_loop(agent)
-
+    # Connect to MCP server and keep the session alive
+    async with stdio_client(server_params) as (read, write):
+        async with ClientSession(read, write) as session:
+            # Initialize the connection
+            await session.initialize()
+            
+            # Setup all available tools (async operation)
+            tools = await setup_tools(session)
+            
+            # Display tools for debugging
+            # This shows what capabilities the model has access to
+            display_tools(tools)
+            
+            # Create agent with LLM model, tools, and system prompt
+            # The agent will use these tools to answer user queries
+            agent = create_agent(
+                model, 
+                tools,
+                system_prompt=SYSTEM_PROMPT
+            )
+            
+            # Start interactive conversation loop
+            await run_agent_loop(agent)
 
 # ============================================================================
 # Script Entry Point
 # ============================================================================
 if __name__ == "__main__":
-    main()
+    # Run the async main function
+    asyncio.run(main())

@@ -8,5 +8,7 @@ dependencies = [
     "langchain==1.2.6",
     "langchain-mcp-adapters==0.2.1",
     "langchain-ollama==1.0.1",
-    "mcp==1.26.0",
+    "langsmith==0.6.4",
+    "mcp[cli]==1.26.0",
+    "python-dotenv>=1.2.1",
 ]

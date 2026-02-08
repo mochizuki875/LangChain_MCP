@@ -1,15 +1,7 @@
 from mcp.server.fastmcp import FastMCP
-from mcp.server.transport_security import TransportSecuritySettings
-from typing import Literal
 
-# Initialize schedule MCP server (v1.x uses FastMCP)
-# json_response=True returns JSON instead of SSE streams
-# stateless_http=True for stateless operation (recommended for production)
-# transport_security allows customizing host validation
-transport_security = TransportSecuritySettings(
-    enable_dns_rebinding_protection=False  # Disable DNS rebinding protection (allows any host)
-)
-mcp = FastMCP("schedule", json_response=True, stateless_http=True, transport_security=transport_security)
+# Initialize schedule MCP server for STDIO transport
+mcp = FastMCP("schedule")
 
 # Mock schedule data
 SCHEDULES = {
@@ -46,9 +38,5 @@ def get_schedule(period: str) -> str:
     return result.strip()
 
 if __name__ == "__main__":
-    mcp.settings.host = "0.0.0.0"
-    mcp.settings.port = 10000
-    mcp.settings.log_level = "DEBUG"
-
-    # Run MCP server using Streamable HTTP transport
-    mcp.run(transport="streamable-http")
+    # Run MCP server using STDIO transport
+    mcp.run(transport="stdio")

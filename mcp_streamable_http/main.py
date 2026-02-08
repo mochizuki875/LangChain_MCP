@@ -1,3 +1,6 @@
+import os
+from dotenv import load_dotenv
+from pathlib import Path
 import asyncio
 from langchain.agents import create_agent
 from langchain_ollama import ChatOllama
@@ -7,9 +10,23 @@ from langchain_mcp_adapters.client import MultiServerMCPClient
 # ============================================================================
 # Configuration Section
 # ============================================================================
-# LLM model configuration
-MODEL_NAME = "gpt-oss:20b"
-MODEL_BASE_URL = "http://edgexpert01:11434"
+# Load environment variables from .env file
+env_path = Path(__file__).parent / '.env'
+load_dotenv(dotenv_path=env_path)
+
+# Initialize LLM Model based on provider
+# LLM Provider Selection (set via environment variable or default to ollama)
+MODEL_NAME = os.getenv("MODEL_NAME", "gpt-oss:20b")
+MODEL_BASE_URL = os.getenv("MODEL_BASE_URL", "http://127.0.0.1:11434")
+LLM_PROVIDER = os.getenv("LLM_PROVIDER", "ollama").lower()
+if LLM_PROVIDER == "ollama":
+    model = ChatOllama(
+        model=MODEL_NAME,
+        base_url=MODEL_BASE_URL
+    )
+    print(f"Using Ollama: {MODEL_NAME} at {MODEL_BASE_URL}")
+else:
+    raise ValueError(f"Unknown LLM_PROVIDER: {LLM_PROVIDER}. Use 'ollama'.")
 
 # MCP server configuration
 MCP_SERVER_URL = "http://127.0.0.1:10000/mcp"
